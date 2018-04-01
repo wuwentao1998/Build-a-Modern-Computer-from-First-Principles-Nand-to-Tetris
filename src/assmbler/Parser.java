@@ -31,7 +31,7 @@ public class Parser {
         initial();
     }
 
-    private void initial() throws IOException { //否则br.readline()总是要抛出异常
+    private void initial() {
         File file = new File(path);
 
         //检验文件合法性
@@ -42,7 +42,7 @@ public class Parser {
         }
 
         filename = file.getName(); //path可能包含路径,不好分割
-        if (filename.substring(filename.lastIndexOf(".")) != "asm") {
+        if (! filename.substring(filename.lastIndexOf(".")+1).equals("asm")) {//字符创不能用不等号比较是否相等
             System.out.println("Assembler only accept asm file!");
             return;
         }
@@ -59,8 +59,19 @@ public class Parser {
 
         String temp = null;
         int currentline = -1;
-        while ((temp = br.readLine()) != null) { //不能在while中创建变量,因为不像for循环中有分号
+        try {
+            temp = br.readLine();
+        }catch(IOException e ){
+            System.out.println("读取失败！");
+        }
+
+        while (temp != null) { //不能在while中创建变量,因为不像for循环中有分号
             if (temp.startsWith("//") || temp.trim().equals("")) {
+                try {
+                    temp = br.readLine();
+                }catch(IOException e ){
+                    System.out.println("读取失败！");
+                }
                 continue;
             }
             if (temp.indexOf("//") > 0) {
@@ -73,6 +84,12 @@ public class Parser {
                 continue;
             }
             codelist.put(++currentline, temp);
+
+            try {
+                temp = br.readLine();
+            }catch(IOException e ){
+                System.out.println("读取失败！");
+            }
         }
 
         AllLine = currentline;
@@ -105,9 +122,9 @@ public class Parser {
     }
 
     public String symbol() {
-        if (commandType() == CommandType.A_COMMAND) {
+        if (commandType().equals(CommandType.A_COMMAND)) {
             return CurrentCode.substring(CurrentCode.indexOf("@") + 1);
-        } else if (commandType() == CommandType.L_COMMAND) {
+        } else if (commandType().equals(CommandType.L_COMMAND)) {
             return CurrentCode.substring(CurrentCode.indexOf("("), CurrentCode.lastIndexOf(")"));
         } else {
             throw new RuntimeException("Line " + CurrentLine + " instruction isn't A_COMMAND or L_COMMAND type!");
@@ -115,12 +132,12 @@ public class Parser {
     }
 
     public String dest() {
-        if (commandType() == CommandType.C_COMMAND) {
+        if (commandType().equals(CommandType.C_COMMAND)) {
             int start = CurrentCode.indexOf("=");
             if (start > 0) {
                 return CurrentCode.substring(0, start);
             } else {
-                return null;
+                return "null";
             }
         } else {
             throw new RuntimeException("Line " + CurrentLine + " instruction isn't C_COMMAND type!");
@@ -128,8 +145,8 @@ public class Parser {
     }
 
     public String comp() {
-        if (commandType() == CommandType.C_COMMAND) {
-            int start = CurrentCode.indexOf("=");
+        if (commandType().equals(CommandType.C_COMMAND)) {
+            int start = CurrentCode.indexOf("=") +1; // substring包含开头,不包含结尾
             int end = CurrentCode.lastIndexOf(";");
             if (end > 0) {
                 return CurrentCode.substring(start > 0 ? start : 0, end);
@@ -142,12 +159,12 @@ public class Parser {
     }
 
     public String jump() {
-        if (commandType() == CommandType.C_COMMAND) {
-            int start = CurrentCode.indexOf(";");
+        if (commandType().equals(CommandType.C_COMMAND)) {
+            int start = CurrentCode.indexOf(";") +1;
             if (start > 0) {
-                return CurrentCode.substring(start + 1);
+                return CurrentCode.substring(start);
             } else {
-                return null;
+                return "null";
             }
         } else {
             throw new RuntimeException("Line " + CurrentLine + " instruction isn't C_COMMAND type!");
@@ -183,10 +200,8 @@ public class Parser {
                 order.append(Code.C_PRIFIX).append(code.comp(comp())).append(code.dest(dest())).append(code.jump(jump()));
                 codes.add(order.toString() + "/n");
             }
-
-            return codes;
         }
-
+        return codes;
     }
 
     private static boolean isNumeric(final String str) {
@@ -200,7 +215,8 @@ public class Parser {
 
     public void compile() {
         ArrayList<String> codes = prase();
-        File dest = new File(path + File.separator + ".hack");
+        String destpath = path.substring(0,path.lastIndexOf("."));
+        File dest = new File(destpath  + ".hack");
         FileWriter fw = null;
         try {
             fw = new FileWriter(dest);

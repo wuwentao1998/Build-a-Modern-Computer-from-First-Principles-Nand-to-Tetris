@@ -9,6 +9,7 @@ public class Launch{
             }
             SymbolTable symTable = new SymbolTable();
             Code code = new Code();
+            String t = args[0];
             Parser parser = new Parser(args[0], symTable, code);
             parser.compile();
         }

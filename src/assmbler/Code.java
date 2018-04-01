@@ -66,17 +66,18 @@ public class Code {
     }
 
     public String comp(String s) {
-        String ret = destTable.get(s);
+        String t = s;
+        String ret = compTable.get(s);
         if (ret == null) {
-            throw new RuntimeException("Can not find dest expresstion '" + s + "'");
+            throw new RuntimeException("Can not find comp expresstion '" + s + "'");
         }
         return ret;
     }
 
     public String jump(String s) {
-        String ret = destTable.get(s);
+        String ret = jumpTable.get(s);
         if (ret == null) {
-            throw new RuntimeException("Can not find dest expresstion '" + s + "'");
+            throw new RuntimeException("Can not find jump expresstion '" + s + "'");
         }
         return ret;
     }
