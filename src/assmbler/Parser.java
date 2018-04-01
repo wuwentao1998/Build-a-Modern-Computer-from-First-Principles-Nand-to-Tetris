@@ -1,4 +1,4 @@
-package assmbler;
+package assembler;
 
 import java.util.HashMap;
 import java.io.BufferedReader;
@@ -8,22 +8,22 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 
 public class Parser {
     private final String path;
+    private String filename;
     private SymbolTable sybTable;
     private Code code;
     private int AllLine;
     private int CurrentLine = 0;
-    private HashMap<Integer,String> codelist;
+    private HashMap<Integer, String> codelist;
     private String CurrentCode;
 
     private enum CommandType {
         A_COMMAND, C_COMMAND, L_COMMAND
     }
 
-    public Parser (final String path, final SymbolTable sybTable, final Code code) {
+    public Parser(final String path, final SymbolTable sybTable, final Code code) {
         this.path = path;
         this.code = code;
         this.sybTable = sybTable;
@@ -31,7 +31,7 @@ public class Parser {
         initial();
     }
 
-    private  void initial() throws IOException { //否则br.readline()总是要抛出异常
+    private void initial() throws IOException { //否则br.readline()总是要抛出异常
         File file = new File(path);
 
         //检验文件合法性
@@ -41,7 +41,7 @@ public class Parser {
             return;
         }
 
-        String filename = file.getName(); //path可能包含路径,不好分割
+        filename = file.getName(); //path可能包含路径,不好分割
         if (filename.substring(filename.lastIndexOf(".")) != "asm") {
             System.out.println("Assembler only accept asm file!");
             return;
@@ -49,7 +49,7 @@ public class Parser {
 
         FileReader fr = null; //try中创建的fr不能在后面使用
         try {
-             fr = new FileReader(file);
+            fr = new FileReader(file);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
@@ -57,19 +57,20 @@ public class Parser {
 
         //创建符号表,去掉注释
 
-        String temp =null;
+        String temp = null;
         int currentline = -1;
-        while ((temp = br.readLine()) != null) { //不能在while中创建变量因为不像for循环中有;
+        while ((temp = br.readLine()) != null) { //不能在while中创建变量,因为不像for循环中有分号
             if (temp.startsWith("//") || temp.trim().equals("")) {
                 continue;
             }
             if (temp.indexOf("//") > 0) {
-                temp = temp.substring(0,temp.indexOf("//")).trim();
+                temp = temp.substring(0, temp.indexOf("//")).trim();
             }
             temp = temp.trim();
 
             if (temp.startsWith("(") && temp.endsWith(")")) {
-                sybTable.addEntry(temp.substring(temp.indexOf("(")+1,temp.lastIndexOf(")")),currentline+1);
+                sybTable.addEntry(temp.substring(temp.indexOf("(") + 1, temp.lastIndexOf(")")), currentline + 1);
+                continue;
             }
             codelist.put(++currentline, temp);
         }
@@ -86,7 +87,8 @@ public class Parser {
     public void advance() {
         if (hasMoreCommands()) {
             CurrentCode = codelist.get(CurrentLine++);
-
+        } else {
+            throw new RuntimeException("No more line!");
         }
     }
 
@@ -103,32 +105,119 @@ public class Parser {
     }
 
     public String symbol() {
-        if (commandType() == CommandType.A_COMMAND ) {
-           return CurrentCode.substring(CurrentCode.indexOf("@")+1);
-        }
-        else if (commandType() == CommandType.L_COMMAND) {
+        if (commandType() == CommandType.A_COMMAND) {
+            return CurrentCode.substring(CurrentCode.indexOf("@") + 1);
+        } else if (commandType() == CommandType.L_COMMAND) {
             return CurrentCode.substring(CurrentCode.indexOf("("), CurrentCode.lastIndexOf(")"));
-        }
-        else {
+        } else {
             throw new RuntimeException("Line " + CurrentLine + " instruction isn't A_COMMAND or L_COMMAND type!");
         }
     }
 
-    public void dest(String dest) {
+    public String dest() {
         if (commandType() == CommandType.C_COMMAND) {
-
+            int start = CurrentCode.indexOf("=");
+            if (start > 0) {
+                return CurrentCode.substring(0, start);
+            } else {
+                return null;
+            }
+        } else {
+            throw new RuntimeException("Line " + CurrentLine + " instruction isn't C_COMMAND type!");
         }
     }
 
-    public void comp(String comp) {
+    public String comp() {
         if (commandType() == CommandType.C_COMMAND) {
-
+            int start = CurrentCode.indexOf("=");
+            int end = CurrentCode.lastIndexOf(";");
+            if (end > 0) {
+                return CurrentCode.substring(start > 0 ? start : 0, end);
+            } else {
+                return CurrentCode.substring(start > 0 ? start : 0);
+            }
+        } else {
+            throw new RuntimeException("Line " + CurrentLine + " instruction isn't C_COMMAND type!");
         }
     }
 
-    public void jump(String jump) {
+    public String jump() {
         if (commandType() == CommandType.C_COMMAND) {
+            int start = CurrentCode.indexOf(";");
+            if (start > 0) {
+                return CurrentCode.substring(start + 1);
+            } else {
+                return null;
+            }
+        } else {
+            throw new RuntimeException("Line " + CurrentLine + " instruction isn't C_COMMAND type!");
+        }
+    }
 
+    private ArrayList<String> prase() {
+        ArrayList<String> codes = new ArrayList<String>();
+        int address = -1;
+        int varAddress = 0x0F;
+        StringBuilder order = new StringBuilder();//便于修改string
+
+        while (hasMoreCommands()) {
+            advance();
+            if (commandType().compareTo(CommandType.A_COMMAND) == 0) {
+                String symbol = symbol();
+                if (isNumeric(symbol)) {
+                    address = Integer.parseInt(symbol);
+                } else {
+                    if (sybTable.contains(symbol)) {
+                        address = sybTable.GetAddress(symbol);
+                    } else {
+                        address = ++varAddress;
+                        sybTable.addEntry(symbol, address);
+                    }
+                }
+                codes.add(code.getATypeBinary(address) + "/n");
+
+            }
+
+            if (commandType().compareTo(CommandType.C_COMMAND) == 0) {
+                order.delete(0, order.length());
+                order.append(Code.C_PRIFIX).append(code.comp(comp())).append(code.dest(dest())).append(code.jump(jump()));
+                codes.add(order.toString() + "/n");
+            }
+
+            return codes;
+        }
+
+    }
+
+    private static boolean isNumeric(final String str) {
+        for(int i = 0;i < str.length();i++) {
+            if (!Character.isDigit(str.charAt(i))) {
+                return false;
+            }
+        }
+    return true;
+    }
+
+    public void compile() {
+        ArrayList<String> codes = prase();
+        File dest = new File(path + File.separator + ".hack");
+        FileWriter fw = null;
+        try {
+            fw = new FileWriter(dest);
+            for (String str : codes) {
+                fw.write(str);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (fw != null) {
+                try {
+                    fw.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
         }
     }
 }
+
